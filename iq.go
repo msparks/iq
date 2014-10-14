@@ -1,11 +1,16 @@
 package main
 
+import "io"
 import "log"
 import "sync"
 import "strings"
 import "time"
 import "code.google.com/p/gcfg"
 import "github.com/sorcix/irc"
+import "net"
+import "net/http"
+import "net/rpc"
+import "net/rpc/jsonrpc"
 
 type Config struct {
 	Network map[string]*NetworkConfig
@@ -107,6 +112,46 @@ func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config) {
 	}
 }
 
+func startCommandRpcServer() {
+	cmd := new(CmdServer)
+
+	s := rpc.NewServer()
+	s.Register(cmd)
+	s.HandleHTTP(rpc.DefaultRPCPath, rpc.DefaultDebugPath)
+
+	l, e := net.Listen("tcp", "[::]:8222")
+	if e != nil {
+		log.Fatal("Command server listen error: ", e)
+	}
+
+	log.Print("Command server listening.")
+
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		go s.ServeCodec(jsonrpc.NewServerCodec(conn))
+	}
+}
+
+func handleIndex(w http.ResponseWriter, r *http.Request) {
+  io.WriteString(w, "IQ\n")
+}
+
+func startStreamServer() {
+	http.HandleFunc("/", handleIndex)
+	http.HandleFunc("/ws", serveWebsocket)
+
+	log.Print("Starting stream server.")
+
+	err := http.ListenAndServe("[::]:8223", nil)
+	if err != nil {
+		log.Fatal("Stream server error: ", err)
+	}
+}
+
 func readConfig(filename string) (cfg Config, err error) {
 	err = gcfg.ReadFileInto(&cfg, filename)
 	return cfg, err
@@ -115,6 +160,7 @@ func readConfig(filename string) (cfg Config, err error) {
 func main() {
 	log.Print("Starting.")
 
+	// Find and read configuration file.
 	cfg, err := readConfig("iq.conf")
 	if err != nil {
 		log.Fatal(err)
@@ -144,6 +190,13 @@ func main() {
 			networks[netName].Channels, &Channel{channelName, config})
 	}
 
+	// Start RPC server.
+	go startCommandRpcServer()
+
+	// Stream server.
+	go startStreamServer()
+
+	// Connect to configured networks.
 	var wg sync.WaitGroup
 	for _, network := range networks {
 		wg.Add(1)
