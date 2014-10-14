@@ -45,7 +45,7 @@ func writeMessage(net *Network, c *irc.Conn, m *irc.Message) {
 	}
 }
 
-func runNetworkLoop(net *Network, cfg *Config) {
+func runNetworkLoop(net *Network, cfg *Config, evs *EventServer) {
 	log.Printf("Network %s: config=%+v", net.Name, *net.Config)
 
 	var c *irc.Conn
@@ -65,13 +65,13 @@ func runNetworkLoop(net *Network, cfg *Config) {
 		}
 
 		log.Printf("[%s] Connected to %s.", net.Name, net.Config.Server)
-		runNetworkConnection(net, c, cfg)
+		runNetworkConnection(net, c, cfg, evs)
 		log.Printf("[%s] Disconnected from %s.", net.Name, net.Config.Server)
 		time.Sleep(10 * time.Second)
 	}
 }
 
-func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config) {
+func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config, evs *EventServer) {
 	var authed bool
 	for {
 		message, err := c.Decode()
@@ -108,6 +108,12 @@ func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config) {
 				join := &irc.Message{nil, irc.JOIN, []string{channel.Name}, ""}
 				writeMessage(net, c, join)
 			}
+		}
+
+		if message.Command == irc.PRIVMSG {
+			// TODO(msparks): Private vs public.
+			event := &Event{Type: MessagePublic}
+			evs.Events <- event
 		}
 	}
 }
@@ -190,6 +196,8 @@ func main() {
 			networks[netName].Channels, &Channel{channelName, config})
 	}
 
+	eventServer := NewEventServer()
+
 	// Start RPC server.
 	go startCommandRpcServer()
 
@@ -202,7 +210,7 @@ func main() {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			runNetworkLoop(network, &cfg)
+			runNetworkLoop(network, &cfg, eventServer)
 		}()
 		time.Sleep(10 * time.Second)
 	}
