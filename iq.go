@@ -114,18 +114,23 @@ func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config, evs *EventServ
 		}
 
 		if message.Command == irc.PRIVMSG {
-			privmsg := &ircproto.Privmsg{
-			Source: &ircproto.Prefix{
+			source := &ircproto.Prefix{
 					Name: proto.String(message.Prefix.Name),
 					User: proto.String(message.Prefix.User),
 					Host: proto.String(message.Prefix.Host),
-				},
+			}
+
+			privmsg := &ircproto.Privmsg{
+				Source: source,
 				Target:  proto.String(message.Params[0]),
 				Message: proto.String(message.Trailing),
 			}
 
 			ev := &public.Event{
-				IrcMessage: &ircproto.Message{Privmsg: privmsg},
+				IrcMessage: &ircproto.Message{
+					Type: ircproto.Message_Type(ircproto.Message_PRIVMSG).Enum(),
+					Privmsg: privmsg,
+				},
 			}
 			evs.Event <- ev
 		}
