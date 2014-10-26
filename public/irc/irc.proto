@@ -11,11 +11,19 @@ message Prefix {
 message Message {
   enum Type {
     UNKNOWN = 0;
-    PRIVMSG = 1;
+    PING = 1;
+    PRIVMSG = 2;
   }
 
   optional Type type = 1;
-  optional Privmsg privmsg = 2;
+  optional Ping ping = 2;
+  optional Privmsg privmsg = 3;
+}
+
+message Ping {
+  // The source is often the content of the ping, usually empty.
+  optional string source = 1;
+  optional string target = 2;
 }
 
 message Privmsg {

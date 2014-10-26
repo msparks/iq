@@ -128,6 +128,16 @@ func ircProtoMessage(message *irc.Message) (p *ircproto.Message, err error) {
 	p = &ircproto.Message{}
 
 	switch message.Command {
+	case irc.PING:
+		var source string
+		if len(message.Params) > 0 {
+			source = message.Params[0]
+		}
+		p.Ping = &ircproto.Ping{
+			Source: proto.String(source),
+			Target: proto.String(message.Trailing),
+		}
+
 	case irc.PRIVMSG:
 		source := &ircproto.Prefix{
 			Name: proto.String(message.Prefix.Name),
@@ -135,9 +145,13 @@ func ircProtoMessage(message *irc.Message) (p *ircproto.Message, err error) {
 			Host: proto.String(message.Prefix.Host),
 		}
 
+		var target string
+		if len(message.Params) > 0 {
+			target = message.Params[0]
+		}
 		p.Privmsg = &ircproto.Privmsg{
 			Source: source,
-			Target:  proto.String(message.Params[0]),
+			Target:  proto.String(target),
 			Message: proto.String(message.Trailing),
 		}
 
