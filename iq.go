@@ -1,5 +1,6 @@
 package main
 
+import "errors"
 import "io"
 import "log"
 import "sync"
@@ -113,28 +114,38 @@ func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config, evs *EventServ
 			}
 		}
 
-		if message.Command == irc.PRIVMSG {
-			source := &ircproto.Prefix{
-					Name: proto.String(message.Prefix.Name),
-					User: proto.String(message.Prefix.User),
-					Host: proto.String(message.Prefix.Host),
-			}
-
-			privmsg := &ircproto.Privmsg{
-				Source: source,
-				Target:  proto.String(message.Params[0]),
-				Message: proto.String(message.Trailing),
-			}
-
-			ev := &public.Event{
-				IrcMessage: &ircproto.Message{
-					Type: ircproto.Message_Type(ircproto.Message_PRIVMSG).Enum(),
-					Privmsg: privmsg,
-				},
-			}
-			evs.Event <- ev
+		p, err := ircProtoMessage(message)
+		if err != nil {
+			continue
 		}
+
+		ev := &public.Event{IrcMessage: p}
+		evs.Event <- ev
 	}
+}
+
+func ircProtoMessage(message *irc.Message) (p *ircproto.Message, err error) {
+	p = &ircproto.Message{}
+
+	switch message.Command {
+	case irc.PRIVMSG:
+		source := &ircproto.Prefix{
+			Name: proto.String(message.Prefix.Name),
+			User: proto.String(message.Prefix.User),
+			Host: proto.String(message.Prefix.Host),
+		}
+
+		p.Privmsg = &ircproto.Privmsg{
+			Source: source,
+			Target:  proto.String(message.Params[0]),
+			Message: proto.String(message.Trailing),
+		}
+
+	default:
+		return nil, errors.New("Unknown command")
+	}
+
+	return p, nil
 }
 
 func startCommandRpcServer() {
