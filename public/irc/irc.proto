@@ -14,7 +14,8 @@ message Message {
     PRIVMSG = 1;
   }
 
-  optional Privmsg privmsg = 1;
+  optional Type type = 1;
+  optional Privmsg privmsg = 2;
 }
 
 message Privmsg {
