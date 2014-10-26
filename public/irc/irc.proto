@@ -1,0 +1,23 @@
+package irc;
+
+message Prefix {
+  optional string nickname = 1;
+  optional string user = 2;
+  optional string host = 3;
+}
+
+// TODO(msparks): Use oneof when it is supported in goprotobuf.
+message Message {
+  enum Type {
+    UNKNOWN = 0;
+    PRIVMSG = 1;
+  }
+
+  optional Privmsg privmsg = 1;
+}
+
+message Privmsg {
+  optional Prefix source = 1;
+  optional string target = 2;
+  optional string message = 3;
+}
