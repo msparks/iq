@@ -1,24 +1,18 @@
 package main
 
-import "log"
+import (
+	"github.com/msparks/iq/public"
+	"log"
+)
 
 type EventType string
 
-const (
-	MessagePublic  EventType = "message:public"
-	MessagePrivate EventType = "message:private"
-)
-
 type EventServer struct {
-	Events chan *Event
-}
-
-type Event struct {
-	Type EventType
+	Event chan *public.Event
 }
 
 func NewEventServer() *EventServer {
-	s := &EventServer{Events: make(chan *Event)}
+	s := &EventServer{Event: make(chan *public.Event)}
 	go readEvents(s)
 	return s
 }
@@ -26,7 +20,7 @@ func NewEventServer() *EventServer {
 func readEvents(s *EventServer) {
 	log.Print("readEvents started.")
 	for {
-		ev := <-s.Events
-		log.Printf("New event: %+v", ev)
+		ev := <-s.Event
+		log.Printf("New event: %+v", ev.String())
 	}
 }

@@ -6,6 +6,9 @@ import "sync"
 import "strings"
 import "time"
 import "code.google.com/p/gcfg"
+import "code.google.com/p/goprotobuf/proto"
+import "github.com/msparks/iq/public"
+import ircproto "github.com/msparks/iq/public/irc"
 import "github.com/sorcix/irc"
 import "net"
 import "net/http"
@@ -111,9 +114,20 @@ func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config, evs *EventServ
 		}
 
 		if message.Command == irc.PRIVMSG {
-			// TODO(msparks): Private vs public.
-			event := &Event{Type: MessagePublic}
-			evs.Events <- event
+			privmsg := &ircproto.Privmsg{
+			Source: &ircproto.Prefix{
+					Name: proto.String(message.Prefix.Name),
+					User: proto.String(message.Prefix.User),
+					Host: proto.String(message.Prefix.Host),
+				},
+				Target:  proto.String(message.Params[0]),
+				Message: proto.String(message.Trailing),
+			}
+
+			ev := &public.Event{
+				IrcMessage: &ircproto.Message{Privmsg: privmsg},
+			}
+			evs.Event <- ev
 		}
 	}
 }
@@ -143,7 +157,7 @@ func startCommandRpcServer() {
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
-  io.WriteString(w, "IQ\n")
+	io.WriteString(w, "IQ\n")
 }
 
 func startStreamServer() {
