@@ -1,7 +1,8 @@
 package irc;
 
 message Prefix {
-  optional string nickname = 1;
+  // Nickname or servername.
+  optional string name = 1;
   optional string user = 2;
   optional string host = 3;
 }

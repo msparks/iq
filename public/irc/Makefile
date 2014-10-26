@@ -4,5 +4,9 @@ TARGETS=\
 all: $(TARGETS)
 .PHONY: all
 
+clean:
+	rm -f $(TARGETS)
+.PHONY: clean
+
 irc.pb.go: irc.proto
-	protoc --go_out=. $^
+	protoc --gogo_out=. $^

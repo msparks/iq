@@ -1,8 +1,9 @@
+SUBDIRS = \
+	irc
 TARGETS=\
-	irc \
 	events.pb.go
 
-all: $(TARGETS)
+all: $(SUBDIRS) $(TARGETS)
 .PHONY: all
 
 irc:
@@ -10,4 +11,11 @@ irc:
 .PHONY: irc
 
 events.pb.go: events.proto
-	protoc --go_out=. $^
+	protoc --gogo_out=. --proto_path=$(GOPATH)/src --proto_path=. $^
+
+clean:
+	for dir in $(SUBDIRS); do \
+	  $(MAKE) -C $$dir $@; \
+	done
+	rm -f $(TARGETS)
+.PHONY: clean
