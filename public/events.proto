@@ -1,0 +1,7 @@
+package public;
+
+import "irc/irc.proto";
+
+message Event {
+  optional irc.Message irc_message = 1;
+}
