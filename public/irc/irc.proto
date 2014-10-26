@@ -13,11 +13,13 @@ message Message {
     UNKNOWN = 0;
     PING = 1;
     PRIVMSG = 2;
+    NOTICE = 3;
   }
 
   optional Type type = 1;
   optional Ping ping = 2;
   optional Privmsg privmsg = 3;
+  optional Notice notice = 4;
 }
 
 message Ping {
@@ -27,6 +29,12 @@ message Ping {
 }
 
 message Privmsg {
+  optional Prefix source = 1;
+  optional string target = 2;
+  optional string message = 3;
+}
+
+message Notice {
   optional Prefix source = 1;
   optional string target = 2;
   optional string message = 3;

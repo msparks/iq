@@ -128,8 +128,17 @@ func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config, evs *EventServ
 	}
 }
 
+func prefixProto(prefix *irc.Prefix) (p *ircproto.Prefix) {
+	p = &ircproto.Prefix{
+		Name: proto.String(prefix.Name),
+		User: proto.String(prefix.User),
+		Host: proto.String(prefix.Host),
+	}
+	return p
+}
+
 func ircProtoMessage(message *irc.Message) (p *ircproto.Message, err error) {
-	p = &ircproto.Message {
+	p = &ircproto.Message{
 		Type: ircproto.Message_UNKNOWN.Enum(),
 	}
 
@@ -146,19 +155,25 @@ func ircProtoMessage(message *irc.Message) (p *ircproto.Message, err error) {
 		}
 
 	case irc.PRIVMSG:
-		source := &ircproto.Prefix{
-			Name: proto.String(message.Prefix.Name),
-			User: proto.String(message.Prefix.User),
-			Host: proto.String(message.Prefix.Host),
-		}
-
 		var target string
 		if len(message.Params) > 0 {
 			target = message.Params[0]
 		}
 		p.Type = ircproto.Message_PRIVMSG.Enum()
 		p.Privmsg = &ircproto.Privmsg{
-			Source: source,
+			Source: prefixProto(message.Prefix),
+			Target:  proto.String(target),
+			Message: proto.String(message.Trailing),
+		}
+
+	case irc.NOTICE:
+		var target string
+		if len(message.Params) > 0 {
+			target = message.Params[0]
+		}
+		p.Type = ircproto.Message_NOTICE.Enum()
+		p.Notice = &ircproto.Notice{
+			Source:  prefixProto(message.Prefix),
 			Target:  proto.String(target),
 			Message: proto.String(message.Trailing),
 		}
