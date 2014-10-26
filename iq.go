@@ -101,11 +101,6 @@ func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config, evs *EventServ
 			authed = true
 		}
 
-		if message.Command == irc.PING {
-			pong := &irc.Message{nil, irc.PONG, nil, message.Trailing}
-			writeMessage(net, c, pong)
-		}
-
 		if message.Command == irc.RPL_WELCOME {
 			// We're connected. Join configured channels.
 			for _, channel := range net.Channels {
@@ -118,14 +113,25 @@ func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config, evs *EventServ
 		if err != nil {
 			continue
 		}
-
 		ev := &public.Event{IrcMessage: p}
 		evs.Event <- ev
+
+		if p.GetType() == ircproto.Message_PING {
+			ping := p.GetPing()
+			var params []string
+			if ping.GetSource() != "" {
+				params = append(params, ping.GetSource())
+			}
+			pong := &irc.Message{nil, irc.PONG, params, ping.GetTarget()}
+			writeMessage(net, c, pong)
+		}
 	}
 }
 
 func ircProtoMessage(message *irc.Message) (p *ircproto.Message, err error) {
-	p = &ircproto.Message{}
+	p = &ircproto.Message {
+		Type: ircproto.Message_UNKNOWN.Enum(),
+	}
 
 	switch message.Command {
 	case irc.PING:
@@ -133,6 +139,7 @@ func ircProtoMessage(message *irc.Message) (p *ircproto.Message, err error) {
 		if len(message.Params) > 0 {
 			source = message.Params[0]
 		}
+		p.Type = ircproto.Message_PING.Enum()
 		p.Ping = &ircproto.Ping{
 			Source: proto.String(source),
 			Target: proto.String(message.Trailing),
@@ -149,6 +156,7 @@ func ircProtoMessage(message *irc.Message) (p *ircproto.Message, err error) {
 		if len(message.Params) > 0 {
 			target = message.Params[0]
 		}
+		p.Type = ircproto.Message_PRIVMSG.Enum()
 		p.Privmsg = &ircproto.Privmsg{
 			Source: source,
 			Target:  proto.String(target),
