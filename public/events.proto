@@ -2,6 +2,12 @@ package public;
 
 import "github.com/msparks/iq/public/irc/irc.proto";
 
+message IrcMessage {
+  // Opaque connection handle.
+  optional string handle = 1;
+  optional irc.Message message = 2;
+}
+
 message Event {
-  optional irc.Message irc_message = 1;
+  optional IrcMessage irc_message = 1;
 }

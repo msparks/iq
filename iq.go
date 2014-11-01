@@ -11,10 +11,12 @@ import "code.google.com/p/goprotobuf/proto"
 import "github.com/msparks/iq/public"
 import ircproto "github.com/msparks/iq/public/irc"
 import "github.com/sorcix/irc"
+import "math/rand"
 import "net"
 import "net/http"
 import "net/rpc"
 import "net/rpc/jsonrpc"
+import "strconv"
 
 type Config struct {
 	Network map[string]*NetworkConfig
@@ -54,8 +56,11 @@ func runNetworkLoop(net *Network, cfg *Config, evs *EventServer) {
 
 	var c *irc.Conn
 	var err error
+	// TODO(msparks): Use an opaque type.
+	var handle string
 	for {
 		for {
+			handle = strconv.FormatInt(rand.Int63(), 16)
 			log.Printf("[%s] Connecting to %s.", net.Name, net.Config.Server)
 			c, err = irc.Dial(net.Config.Server)
 			if err != nil {
@@ -68,14 +73,14 @@ func runNetworkLoop(net *Network, cfg *Config, evs *EventServer) {
 			}
 		}
 
-		log.Printf("[%s] Connected to %s.", net.Name, net.Config.Server)
-		runNetworkConnection(net, c, cfg, evs)
+		log.Printf("[%s] Connected to %s. Handle: %s", net.Name, net.Config.Server, handle)
+		runNetworkConnection(handle, net, c, cfg, evs)
 		log.Printf("[%s] Disconnected from %s.", net.Name, net.Config.Server)
 		time.Sleep(10 * time.Second)
 	}
 }
 
-func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config, evs *EventServer) {
+func runNetworkConnection(handle string, net *Network, c *irc.Conn, cfg *Config, evs *EventServer) {
 	var authed bool
 	for {
 		message, err := c.Decode()
@@ -113,7 +118,9 @@ func runNetworkConnection(net *Network, c *irc.Conn, cfg *Config, evs *EventServ
 		if err != nil {
 			continue
 		}
-		ev := &public.Event{IrcMessage: p}
+		ev := &public.Event{IrcMessage: &public.IrcMessage{
+			Handle: proto.String(handle),
+			Message: p}}
 		evs.Event <- ev
 
 		if p.GetType() == ircproto.Message_PING {
@@ -161,7 +168,7 @@ func ircProtoMessage(message *irc.Message) (p *ircproto.Message, err error) {
 		}
 		p.Type = ircproto.Message_PRIVMSG.Enum()
 		p.Privmsg = &ircproto.Privmsg{
-			Source: prefixProto(message.Prefix),
+			Source:  prefixProto(message.Prefix),
 			Target:  proto.String(target),
 			Message: proto.String(message.Trailing),
 		}
@@ -216,7 +223,7 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 func startStreamServer(s *EventServer) {
 	http.HandleFunc("/", handleIndex)
 
-	http.HandleFunc("/ws", func (w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWebsocket(s, w, r)
 	})
 
