@@ -9,13 +9,13 @@ type EventServer struct {
 	Notifier
 
 	Event chan *public.Event
-
-	listeners []chan interface{}
+	Command chan *public.Command
 }
 
 func NewEventServer() *EventServer {
 	s := &EventServer{Event: make(chan *public.Event)}
 	go s.readEvents()
+	go s.readCommands()
 
 	// For debugging.
 	go printEvents(s)
@@ -32,6 +32,13 @@ func (s *EventServer) readEvents() {
 	}
 }
 
+func (s *EventServer) readCommands() {
+	for {
+		cmd := <-s.Command
+		s.notify(cmd)
+	}
+}
+
 func printEvents(s *EventServer) {
 	notifiee := s.NewNotifiee()
 	defer s.CloseNotifiee(notifiee)
@@ -41,6 +48,8 @@ func printEvents(s *EventServer) {
 		switch v := v.(type) {
 		case *public.Event:
 			log.Printf("New event: %+v", v.String())
+		case *public.Command:
+			log.Printf("New command: %+v", v.String())
 		default:
 			log.Printf("Unhandled type in printEvents: %T", v)
 		}
