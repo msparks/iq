@@ -1,7 +1,6 @@
 package main
 
 import "code.google.com/p/goprotobuf/proto"
-import "errors"
 import "github.com/msparks/iq/public"
 import ircproto "github.com/msparks/iq/public/irc"
 import "github.com/sorcix/irc"
@@ -121,7 +120,7 @@ func (nc *NetworkConnection) runLoop() {
 			}
 		}
 
-		p, err := ircProtoMessage(message)
+		p, err := MessageAsProto(message)
 		if err != nil {
 			continue
 		}
@@ -140,61 +139,4 @@ func (nc *NetworkConnection) runLoop() {
 			nc.write(pong)
 		}
 	}
-}
-
-func prefixProto(prefix *irc.Prefix) (p *ircproto.Prefix) {
-	p = &ircproto.Prefix{
-		Name: proto.String(prefix.Name),
-		User: proto.String(prefix.User),
-		Host: proto.String(prefix.Host),
-	}
-	return p
-}
-
-func ircProtoMessage(message *irc.Message) (p *ircproto.Message, err error) {
-	p = &ircproto.Message{
-		Type: ircproto.Message_UNKNOWN.Enum(),
-	}
-
-	switch message.Command {
-	case irc.PING:
-		var source string
-		if len(message.Params) > 0 {
-			source = message.Params[0]
-		}
-		p.Type = ircproto.Message_PING.Enum()
-		p.Ping = &ircproto.Ping{
-			Source: proto.String(source),
-			Target: proto.String(message.Trailing),
-		}
-
-	case irc.PRIVMSG:
-		var target string
-		if len(message.Params) > 0 {
-			target = message.Params[0]
-		}
-		p.Type = ircproto.Message_PRIVMSG.Enum()
-		p.Privmsg = &ircproto.Privmsg{
-			Source:  prefixProto(message.Prefix),
-			Target:  proto.String(target),
-			Message: proto.String(message.Trailing),
-		}
-
-	case irc.NOTICE:
-		var target string
-		if len(message.Params) > 0 {
-			target = message.Params[0]
-		}
-		p.Type = ircproto.Message_NOTICE.Enum()
-		p.Notice = &ircproto.Notice{
-			Source:  prefixProto(message.Prefix),
-			Target:  proto.String(target),
-			Message: proto.String(message.Trailing),
-		}
-
-	default:
-		return nil, errors.New("Unknown command")
-	}
-
-	return p, nil
 }
