@@ -213,9 +213,12 @@ func handleIndex(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "IQ\n")
 }
 
-func startStreamServer() {
+func startStreamServer(s *EventServer) {
 	http.HandleFunc("/", handleIndex)
-	http.HandleFunc("/ws", serveWebsocket)
+
+	http.HandleFunc("/ws", func (w http.ResponseWriter, r *http.Request) {
+		serveWebsocket(s, w, r)
+	})
 
 	log.Print("Starting stream server.")
 
@@ -269,7 +272,7 @@ func main() {
 	go startCommandRpcServer()
 
 	// Stream server.
-	go startStreamServer()
+	go startStreamServer(eventServer)
 
 	// Connect to configured networks.
 	var wg sync.WaitGroup
