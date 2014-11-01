@@ -20,6 +20,8 @@ const (
 )
 
 type NetworkConnection struct {
+	Notifier
+
 	Network *Network
 
 	evs *EventServer
@@ -28,6 +30,11 @@ type NetworkConnection struct {
 	handle ConnectionHandle
 	quit chan bool
 	wg sync.WaitGroup
+}
+
+type NetworkConnectionStateChange struct {}
+type NetworkConnectionEvent struct {
+	Event *public.Event
 }
 
 func NewNetworkConnection(n *Network, evs *EventServer) *NetworkConnection {
@@ -46,6 +53,17 @@ func (nc *NetworkConnection) Wait() {
 	nc.wg.Wait()
 }
 
+func (nc *NetworkConnection) State() NetworkConnectionState {
+	return nc.state
+}
+
+func (nc *NetworkConnection) setState(s NetworkConnectionState) {
+	if s != nc.state {
+		nc.state = s
+		nc.notify(NetworkConnectionStateChange{})
+	}
+}
+
 func (nc *NetworkConnection) write(m *irc.Message) {
 	log.Printf("[%s] >> %v", nc.Network.Name, m)
 	err := nc.conn.Encode(m)
@@ -56,12 +74,12 @@ func (nc *NetworkConnection) write(m *irc.Message) {
 
 func (nc *NetworkConnection) connectLoop() {
 	log.Printf("Network %s: config=%+v", nc.Network.Name, nc.Network.Config)
-	nc.state = DISCONNECTED
+	nc.setState(DISCONNECTED)
 
 	for {
 		var err error
 		for {
-			nc.state = CONNECTING
+			nc.setState(CONNECTING)
 			nc.handle = ConnectionHandle(strconv.FormatInt(rand.Int63(), 16))
 			log.Printf("[%s] Connecting to %s.", nc.Network.Name, nc.Network.Config.Server)
 
@@ -76,11 +94,11 @@ func (nc *NetworkConnection) connectLoop() {
 			}
 		}
 
-		nc.state = CONNECTED
+		nc.setState(CONNECTED)
 		log.Printf("[%s] Connected to %s. Handle: %s",
 			nc.Network.Name, nc.Network.Config.Server, nc.handle)
 		nc.runLoop()
-		nc.state = DISCONNECTED
+		nc.setState(DISCONNECTED)
 		log.Printf("[%s] Disconnected from %s.", nc.Network.Name, nc.Network.Config.Server)
 		time.Sleep(10 * time.Second)
 	}
