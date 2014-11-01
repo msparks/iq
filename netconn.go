@@ -63,6 +63,20 @@ func (nc *NetworkConnection) setState(s NetworkConnectionState) {
 	}
 }
 
+// TODO(msparks): Locking.
+func (nc *NetworkConnection) Handle() ConnectionHandle {
+	return nc.handle
+}
+
+// TODO(msparks): Return error.
+func (nc *NetworkConnection) Write(p *ircproto.Message) {
+	msg, err := ProtoAsMessage(p)
+	if err != nil {
+		return
+	}
+	nc.write(msg)
+}
+
 func (nc *NetworkConnection) write(m *irc.Message) {
 	log.Printf("[%s] >> %v", nc.Network.Name, m)
 	err := nc.conn.Encode(m)
@@ -145,15 +159,5 @@ func (nc *NetworkConnection) runLoop() {
 			Handle: proto.String(string(nc.handle)),
 			Message: p}}
 		nc.notify(NetworkConnectionEvent{Event: ev})
-
-		if p.GetType() == ircproto.Message_PING {
-			ping := p.GetPing()
-			var params []string
-			if ping.GetSource() != "" {
-				params = append(params, ping.GetSource())
-			}
-			pong := &irc.Message{nil, irc.PONG, params, ping.GetTarget()}
-			nc.write(pong)
-		}
 	}
 }

@@ -3,7 +3,6 @@ package main
 import "code.google.com/p/goprotobuf/proto"
 import "github.com/msparks/iq/public"
 import ircproto "github.com/msparks/iq/public/irc"
-import "log"
 
 func PingReactor(evs *EventServer) {
 	notifiee := evs.NewNotifiee()
@@ -15,7 +14,6 @@ func PingReactor(evs *EventServer) {
 		case *public.Event:
 			msg := v.GetIrcMessage(); if msg != nil {
 				if msg.GetMessage().GetType() == ircproto.Message_PING {
-					log.Printf("PingReactor received PING: %+v", msg)
 					pong(msg, evs)
 				}
 			}
@@ -38,7 +36,5 @@ func pong(msg *public.IrcMessage, evs *EventServer) {
 			Message: reply,
 		},
 	}
-
-	log.Printf("Pong: %+v", cmd)
 	evs.Command <-cmd
 }

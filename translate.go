@@ -5,6 +5,22 @@ import "errors"
 import ircproto "github.com/msparks/iq/public/irc"
 import "github.com/sorcix/irc"
 
+func ProtoAsMessage(p *ircproto.Message) (message *irc.Message, err error) {
+	message = &irc.Message{}
+
+	switch p.GetType() {
+	case ircproto.Message_PONG:
+		message.Command = irc.PONG
+		message.Params = []string{p.GetPong().GetSource()}
+		message.Trailing = p.GetPong().GetTarget()
+
+	default:
+		return nil, errors.New("Unknown message type")
+	}
+
+	return message, nil
+}
+
 func MessageAsProto(message *irc.Message) (p *ircproto.Message, err error) {
 	p = &ircproto.Message{
 		Type: ircproto.Message_UNKNOWN.Enum(),

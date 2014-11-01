@@ -133,6 +133,7 @@ func main() {
 	for _, network := range networks {
 		nc := NewNetworkConnection(network)
 		go ConnReactor(nc, eventServer)
+		go CommandReactor(eventServer, nc)
 
 		ncs = append(ncs, nc)
 		time.Sleep(10 * time.Second)
