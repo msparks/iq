@@ -40,4 +40,5 @@ func pong(msg *public.IrcMessage, evs *EventServer) {
 	}
 
 	log.Printf("Pong: %+v", cmd)
+	evs.Command <-cmd
 }

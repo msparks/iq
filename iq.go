@@ -119,6 +119,7 @@ func main() {
 
 	eventServer := NewEventServer()
 
+	// Respond to PINGs.
 	go PingReactor(eventServer)
 
 	// Start RPC server.

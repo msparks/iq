@@ -13,9 +13,11 @@ type EventServer struct {
 }
 
 func NewEventServer() *EventServer {
-	s := &EventServer{Event: make(chan *public.Event)}
-	go s.readEvents()
-	go s.readCommands()
+	s := &EventServer{
+		Event: make(chan *public.Event),
+		Command: make(chan *public.Command),
+	}
+	go s.readChannels()
 
 	// For debugging.
 	go printEvents(s)
@@ -23,22 +25,18 @@ func NewEventServer() *EventServer {
 	return s
 }
 
-func (s *EventServer) readEvents() {
-	log.Print("readEvents started.")
-
+func (s *EventServer) readChannels() {
 	for {
-		ev := <-s.Event
-		s.notify(ev)
+		select {
+		case ev := <-s.Event:
+			s.notify(ev)
+		case cmd := <-s.Command:
+			s.notify(cmd)
+		}
 	}
 }
 
-func (s *EventServer) readCommands() {
-	for {
-		cmd := <-s.Command
-		s.notify(cmd)
-	}
-}
-
+// TODO(msparks): Make this into a reactor elsewhere.
 func printEvents(s *EventServer) {
 	notifiee := s.NewNotifiee()
 	defer s.CloseNotifiee(notifiee)
