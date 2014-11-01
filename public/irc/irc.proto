@@ -12,18 +12,25 @@ message Message {
   enum Type {
     UNKNOWN = 0;
     PING = 1;
-    PRIVMSG = 2;
-    NOTICE = 3;
+    PONG = 2;
+    PRIVMSG = 3;
+    NOTICE = 4;
   }
 
   optional Type type = 1;
   optional Ping ping = 2;
-  optional Privmsg privmsg = 3;
-  optional Notice notice = 4;
+  optional Pong pong = 3;
+  optional Privmsg privmsg = 4;
+  optional Notice notice = 5;
 }
 
 message Ping {
   // The source is often the content of the ping, usually empty.
+  optional string source = 1;
+  optional string target = 2;
+}
+
+message Pong {
   optional string source = 1;
   optional string target = 2;
 }
