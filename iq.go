@@ -119,6 +119,8 @@ func main() {
 
 	eventServer := NewEventServer()
 
+	go PingReactor(eventServer)
+
 	// Start RPC server.
 	go startCommandRpcServer()
 
