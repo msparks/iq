@@ -10,8 +10,8 @@ public:
 	$(MAKE) -C $@
 .PHONY: public
 
-iq: iq.go eventserver.go clients.go cmdserver.go netconn.go translate.go
-	go build $^
+iq: *.go
+	go build -o $@ $^
 
 clean:
 	for dir in $(SUBDIRS); do \

@@ -19,16 +19,16 @@ func serveWebsocket(s *EventServer, w http.ResponseWriter, r *http.Request) {
 	}
 	log.Print("Websocket client connected.")
 
-	listener := s.NewListener()
+	notifiee := s.NewNotifiee()
 	var wg sync.WaitGroup
 
 	// Relay events from the EventServer to the client.
 	wg.Add(1)
 	go func() {
 		for {
-			t, ok := <-listener
+			t, ok := <-notifiee
 			if !ok {
-				log.Print("Listener closed. Writer returning.")
+				log.Print("Notifiee closed. Writer returning.")
 				return
 			}
 			ev, ok := t.(*public.Event)
@@ -55,7 +55,7 @@ func serveWebsocket(s *EventServer, w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Kill writer.
-	s.CloseListener(listener)
+	s.CloseNotifiee(notifiee)
 	wg.Wait()
 
 	log.Print("Closing websocket connection.")
