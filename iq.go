@@ -26,6 +26,7 @@ type Config struct {
 type NetworkConfig struct {
 	Nick   string
 	Server string
+	// TODO(msparks): Multiple servers on the same network?
 }
 
 type ChannelConfig struct {
@@ -43,9 +44,17 @@ type Channel struct {
 	Config *ChannelConfig
 }
 
-func writeMessage(net *Network, c *irc.Conn, m *irc.Message) {
-	log.Printf("[%s] >> %v", net.Name, m)
-	err := c.Encode(m)
+type ConnectionHandle string
+
+type NetworkConnection struct {
+	Network *Network
+	Conn *irc.Conn
+	Handle ConnectionHandle
+}
+
+func writeMessage(nc *NetworkConnection, m *irc.Message) {
+	log.Printf("[%s] >> %v", nc.Network.Name, m)
+	err := nc.Conn.Encode(m)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -54,15 +63,13 @@ func writeMessage(net *Network, c *irc.Conn, m *irc.Message) {
 func runNetworkLoop(net *Network, cfg *Config, evs *EventServer) {
 	log.Printf("Network %s: config=%+v", net.Name, *net.Config)
 
-	var c *irc.Conn
-	var err error
-	// TODO(msparks): Use an opaque type.
-	var handle string
 	for {
+		nc := NetworkConnection{Network: net}
+		var err error
 		for {
-			handle = strconv.FormatInt(rand.Int63(), 16)
+			nc.Handle = ConnectionHandle(strconv.FormatInt(rand.Int63(), 16))
 			log.Printf("[%s] Connecting to %s.", net.Name, net.Config.Server)
-			c, err = irc.Dial(net.Config.Server)
+			nc.Conn, err = irc.Dial(net.Config.Server)
 			if err != nil {
 				log.Printf(
 					"[%s] Connection error: %v. Retrying in 5 seconds.",
@@ -73,44 +80,44 @@ func runNetworkLoop(net *Network, cfg *Config, evs *EventServer) {
 			}
 		}
 
-		log.Printf("[%s] Connected to %s. Handle: %s", net.Name, net.Config.Server, handle)
-		runNetworkConnection(handle, net, c, cfg, evs)
+		log.Printf("[%s] Connected to %s. Handle: %s", net.Name, net.Config.Server, nc.Handle)
+		runNetworkConnection(nc, cfg, evs)
 		log.Printf("[%s] Disconnected from %s.", net.Name, net.Config.Server)
 		time.Sleep(10 * time.Second)
 	}
 }
 
-func runNetworkConnection(handle string, net *Network, c *irc.Conn, cfg *Config, evs *EventServer) {
+func runNetworkConnection(nc NetworkConnection, cfg *Config, evs *EventServer) {
 	var authed bool
 	for {
-		message, err := c.Decode()
+		message, err := nc.Conn.Decode()
 		if err != nil {
 			return
 		}
 
 		log.Printf(
 			"[%s] %v %v %v %v",
-			net.Name,
+			nc.Network.Name,
 			message.Prefix,
 			message.Command,
 			message.Params,
 			message.Trailing)
 
 		if !authed {
-			nick := &irc.Message{nil, irc.NICK, []string{net.Config.Nick}, ""}
+			nick := &irc.Message{nil, irc.NICK, []string{nc.Network.Config.Nick}, ""}
 			user := &irc.Message{nil, irc.USER, []string{"iq", "*", "*"}, "IQ"}
 
-			writeMessage(net, c, nick)
-			writeMessage(net, c, user)
+			writeMessage(&nc, nick)
+			writeMessage(&nc, user)
 
 			authed = true
 		}
 
 		if message.Command == irc.RPL_WELCOME {
 			// We're connected. Join configured channels.
-			for _, channel := range net.Channels {
+			for _, channel := range nc.Network.Channels {
 				join := &irc.Message{nil, irc.JOIN, []string{channel.Name}, ""}
-				writeMessage(net, c, join)
+				writeMessage(&nc, join)
 			}
 		}
 
@@ -119,7 +126,7 @@ func runNetworkConnection(handle string, net *Network, c *irc.Conn, cfg *Config,
 			continue
 		}
 		ev := &public.Event{IrcMessage: &public.IrcMessage{
-			Handle: proto.String(handle),
+			Handle: proto.String(string(nc.Handle)),
 			Message: p}}
 		evs.Event <- ev
 
@@ -130,7 +137,7 @@ func runNetworkConnection(handle string, net *Network, c *irc.Conn, cfg *Config,
 				params = append(params, ping.GetSource())
 			}
 			pong := &irc.Message{nil, irc.PONG, params, ping.GetTarget()}
-			writeMessage(net, c, pong)
+			writeMessage(&nc, pong)
 		}
 	}
 }
