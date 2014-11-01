@@ -10,7 +10,7 @@ public:
 	$(MAKE) -C $@
 .PHONY: public
 
-iq: iq.go eventserver.go clients.go cmdserver.go
+iq: iq.go eventserver.go clients.go cmdserver.go netconn.go
 	go build $^
 
 clean:
