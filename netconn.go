@@ -24,7 +24,6 @@ type NetworkConnection struct {
 
 	Network *Network
 
-	evs *EventServer
 	state NetworkConnectionState
 	conn *irc.Conn
 	handle ConnectionHandle
@@ -37,8 +36,8 @@ type NetworkConnectionEvent struct {
 	Event *public.Event
 }
 
-func NewNetworkConnection(n *Network, evs *EventServer) *NetworkConnection {
-	nc := &NetworkConnection{Network: n, evs: evs}
+func NewNetworkConnection(n *Network) *NetworkConnection {
+	nc := &NetworkConnection{Network: n}
 	nc.quit = make(chan bool)
 	nc.wg.Add(1)
 	go nc.connectLoop()
@@ -145,7 +144,7 @@ func (nc *NetworkConnection) runLoop() {
 		ev := &public.Event{IrcMessage: &public.IrcMessage{
 			Handle: proto.String(string(nc.handle)),
 			Message: p}}
-		nc.evs.Event <- ev
+		nc.notify(NetworkConnectionEvent{Event: ev})
 
 		if p.GetType() == ircproto.Message_PING {
 			ping := p.GetPing()

@@ -129,6 +129,22 @@ func main() {
 	var ncs []*NetworkConnection
 	for _, network := range networks {
 		nc := NewNetworkConnection(network, eventServer)
+
+		go func() {
+			notifiee := nc.NewNotifiee()
+			defer nc.CloseNotifiee(notifiee)
+			for {
+				v := <-notifiee
+				switch v := v.(type) {
+				case NetworkConnectionStateChange:
+					log.Printf("NetworkConnection state changed %s", nc.Network.Name)
+				case NetworkConnectionEvent:
+					log.Printf("Received event from NetworkConnection: %+v", v)
+					eventServer.Event <-v.Event
+				}
+			}
+		}()
+
 		ncs = append(ncs, nc)
 		time.Sleep(10 * time.Second)
 	}
