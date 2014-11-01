@@ -5,10 +5,7 @@ import "log"
 import "strings"
 import "time"
 import "code.google.com/p/gcfg"
-import "net"
 import "net/http"
-import "net/rpc"
-import "net/rpc/jsonrpc"
 
 type Config struct {
 	Network map[string]*NetworkConfig
@@ -34,30 +31,6 @@ type Network struct {
 type Channel struct {
 	Name   string
 	Config *ChannelConfig
-}
-
-func startCommandRpcServer() {
-	cmd := new(CmdServer)
-
-	s := rpc.NewServer()
-	s.Register(cmd)
-	s.HandleHTTP(rpc.DefaultRPCPath, rpc.DefaultDebugPath)
-
-	l, e := net.Listen("tcp", "[::]:8222")
-	if e != nil {
-		log.Fatal("Command server listen error: ", e)
-	}
-
-	log.Print("Command server listening.")
-
-	for {
-		conn, err := l.Accept()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		go s.ServeCodec(jsonrpc.NewServerCodec(conn))
-	}
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -121,9 +94,6 @@ func main() {
 
 	// Respond to PINGs.
 	go PingReactor(eventServer)
-
-	// Start RPC server.
-	go startCommandRpcServer()
 
 	// Stream server.
 	go startStreamServer(eventServer)
