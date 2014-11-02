@@ -3,8 +3,8 @@ package ircconnection
 import (
 	"errors"
 	"github.com/msparks/iq/notify"
-	"github.com/sorcix/irc"
 	ircproto "github.com/msparks/iq/public/irc"
+	"github.com/sorcix/irc"
 	"log"
 	"sync"
 )
@@ -43,7 +43,7 @@ type IncomingMessage struct {
 func NewIRCConnection(endpoints []Endpoint) *IRCConnection {
 	ic := &IRCConnection{
 		Endpoints: endpoints,
-		state: DISCONNECTED,
+		state:     DISCONNECTED,
 	}
 	return ic
 }
@@ -130,11 +130,13 @@ func (ic *IRCConnection) run() error {
 	ic.out = make(chan *ircproto.Message)
 	go func() {
 		for {
-			p, ok := <-ic.out; if !ok {
+			p, ok := <-ic.out
+			if !ok {
 				return
 			}
 
-			msg, err := ProtoAsMessage(p); if err != nil {
+			msg, err := ProtoAsMessage(p)
+			if err != nil {
 				log.Printf("Ignoring outgoing message: %+v", p)
 				continue
 			}
