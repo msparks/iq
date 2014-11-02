@@ -47,11 +47,9 @@ func NewNetworkConnection(n *Network) *NetworkConnection {
 		ic: ircconnection.NewIRCConnection([]ircconnection.Endpoint{endpoint}),
 	}
 
-	nc.ic.StateIs(ircconnection.CONNECTING)
-
 	nc.quit = make(chan bool)
 	nc.wg.Add(1)
-	go nc.connectLoop()
+	go nc.run()
 	return nc
 }
 
@@ -81,94 +79,64 @@ func (nc *NetworkConnection) Handle() ConnectionHandle {
 
 // TODO(msparks): Return error.
 func (nc *NetworkConnection) Write(p *ircproto.Message) {
-	msg, err := ProtoAsMessage(p)
-	if err != nil {
-		return
-	}
-	nc.write(msg)
+	nc.ic.OutgoingMessageIs(p)
 }
 
-func (nc *NetworkConnection) write(m *irc.Message) {
-	log.Printf("[%s] >> %v", nc.Network.Name, m)
-	err := nc.conn.Encode(m)
-	if err != nil {
-		log.Fatal(err)
-	}
-}
+func (nc *NetworkConnection) run() {
+	log.Print("NetworkConnection: run")
+	notifiee := nc.ic.NewNotifiee()
+	defer nc.ic.CloseNotifiee(notifiee)
 
-func (nc *NetworkConnection) connectLoop() {
-	log.Printf("Network %s: config=%+v", nc.Network.Name, nc.Network.Config)
-	nc.setState(DISCONNECTED)
+	go nc.ic.StateIs(ircconnection.CONNECTING)
 
 	for {
-		var err error
-		for {
-			nc.setState(CONNECTING)
-			nc.handle = ConnectionHandle(strconv.FormatInt(rand.Int63(), 16))
-			log.Printf("[%s] Connecting to %s.", nc.Network.Name, nc.Network.Config.Server)
-
-			nc.conn, err = irc.Dial(nc.Network.Config.Server)
-			if err != nil {
-				log.Printf(
-					"[%s] Connection error: %v. Retrying in 5 seconds.",
-					nc.Network.Name, err)
+		v := <-notifiee
+		log.Printf("NetworkConnection: notification %T", v)
+		switch v := v.(type) {
+		case ircconnection.StateChange:
+			switch nc.ic.State() {
+			case ircconnection.DISCONNECTED:
+				nc.setState(DISCONNECTED)
 				time.Sleep(5 * time.Second)
-			} else {
-				break
+				log.Printf("Reconnecting...")
+				nc.setState(CONNECTING)
+				go nc.ic.StateIs(ircconnection.CONNECTING)
+
+			case ircconnection.CONNECTED:
+				nc.setState(CONNECTED)
+				log.Printf("Connected")
+				nc.handle = ConnectionHandle(strconv.FormatInt(rand.Int63(), 16))
+				// TODO(msparks): Write USER.
+				nick := &ircproto.Message{
+					Type: ircproto.Message_NICK.Enum(),
+					Nick: &ircproto.Nick{
+						NewNick: proto.String(nc.Network.Config.Nick),
+					},
+				}
+				user := &ircproto.Message{
+					Type: ircproto.Message_USER.Enum(),
+					User: &ircproto.User{
+						User: proto.String("IQ"),
+						Realname: proto.String("IQ"),
+					},
+				}
+				nc.ic.OutgoingMessageIs(nick)
+				nc.ic.OutgoingMessageIs(user)
 			}
-		}
 
-		nc.setState(CONNECTED)
-		log.Printf("[%s] Connected to %s. Handle: %s",
-			nc.Network.Name, nc.Network.Config.Server, nc.handle)
-		nc.runLoop()
-		nc.setState(DISCONNECTED)
-		log.Printf("[%s] Disconnected from %s.", nc.Network.Name, nc.Network.Config.Server)
-		time.Sleep(10 * time.Second)
-	}
-}
-
-func (nc *NetworkConnection) runLoop() {
-	var authed bool
-	for {
-		message, err := nc.conn.Decode()
-		if err != nil {
-			return
-		}
-
-		log.Printf(
-			"[%s] %v %v %v %v",
-			nc.Network.Name,
-			message.Prefix,
-			message.Command,
-			message.Params,
-			message.Trailing)
-
-		if !authed {
-			nick := &irc.Message{nil, irc.NICK, []string{nc.Network.Config.Nick}, ""}
-			user := &irc.Message{nil, irc.USER, []string{"iq", "*", "*"}, "IQ"}
-
-			nc.write(nick)
-			nc.write(user)
-
-			authed = true
-		}
-
-		if message.Command == irc.RPL_WELCOME {
-			// We're connected. Join configured channels.
-			for _, channel := range nc.Network.Channels {
-				join := &irc.Message{nil, irc.JOIN, []string{channel.Name}, ""}
-				nc.write(join)
+		case ircconnection.IncomingMessage:
+			ev := &public.Event{
+				IrcMessage: &public.IrcMessage{
+					Handle: proto.String(string(nc.handle)),
+					Message: v.Message,
+				},
 			}
-		}
 
-		p, err := MessageAsProto(message)
-		if err != nil {
-			continue
+			log.Printf("Incoming event: %+v", ev)
+
+			// TODO(msparks): If welcome message received, join channels.
+
+			nc.Notify(NetworkConnectionEvent{Event: ev})
 		}
-		ev := &public.Event{IrcMessage: &public.IrcMessage{
-			Handle: proto.String(string(nc.handle)),
-			Message: p}}
-		nc.Notify(NetworkConnectionEvent{Event: ev})
 	}
 }

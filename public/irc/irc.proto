@@ -15,6 +15,8 @@ message Message {
     PONG = 2;
     PRIVMSG = 3;
     NOTICE = 4;
+    NICK = 5;
+    USER = 6;
   }
 
   optional Type type = 1;
@@ -22,6 +24,8 @@ message Message {
   optional Pong pong = 3;
   optional Privmsg privmsg = 4;
   optional Notice notice = 5;
+  optional Nick nick = 6;
+  optional User user = 7;
 }
 
 message Ping {
@@ -45,4 +49,15 @@ message Notice {
   optional Prefix source = 1;
   optional string target = 2;
   optional string message = 3;
+}
+
+message Nick {
+  optional Prefix source = 1;
+  optional string new_nick = 2;
+}
+
+message User {
+  optional string user = 1;
+  // TODO(msparks): Mode in tag 2.
+  optional string realname = 3;
 }
