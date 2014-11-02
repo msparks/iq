@@ -93,7 +93,7 @@ func (nc *NetworkConnection) run() {
 		v := <-notifiee
 		log.Printf("NetworkConnection: notification %T", v)
 		switch v := v.(type) {
-		case ircconnection.StateChange:
+		case ircconnection.StateChangeNotification:
 			switch nc.ic.State() {
 			case ircconnection.DISCONNECTED:
 				nc.setState(DISCONNECTED)
@@ -124,7 +124,7 @@ func (nc *NetworkConnection) run() {
 				nc.ic.OutgoingMessageIs(user)
 			}
 
-		case ircconnection.IncomingMessage:
+		case ircconnection.IncomingMessageNotification:
 			ev := &public.Event{
 				IrcMessage: &public.IrcMessage{
 					Handle: proto.String(string(nc.handle)),

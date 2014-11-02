@@ -5,7 +5,7 @@ import "errors"
 import ircproto "github.com/msparks/iq/public/irc"
 import "github.com/sorcix/irc"
 
-func ProtoAsMessage(p *ircproto.Message) (message *irc.Message, err error) {
+func protoAsMessage(p *ircproto.Message) (message *irc.Message, err error) {
 	message = &irc.Message{}
 
 	switch p.GetType() {
@@ -36,7 +36,7 @@ func ProtoAsMessage(p *ircproto.Message) (message *irc.Message, err error) {
 	return message, nil
 }
 
-func MessageAsProto(message *irc.Message) (p *ircproto.Message, err error) {
+func messageAsProto(message *irc.Message) (p *ircproto.Message, err error) {
 	p = &ircproto.Message{
 		Type: ircproto.Message_UNKNOWN.Enum(),
 	}

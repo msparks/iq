@@ -1,3 +1,7 @@
+// This package provides a state machine interface to an IRC connection.
+//
+// Incoming messages and connection state changes are delivered as notifications
+// via the notify package.
 package ircconnection
 
 import (
@@ -9,21 +13,31 @@ import (
 	"sync"
 )
 
+// State of the IRC connection.
 type State string
 
+// IRC connection states.
 const (
 	DISCONNECTED State = "DISCONNECTED"
 	CONNECTING   State = "CONNECTING"
 	CONNECTED    State = "CONNECTED"
 )
 
+// An IRC server.
 type Endpoint struct {
+	// net.Dial format.
 	Address string
 }
 
+// IRCConnection is a state machine for a connection to an IRC network. Its
+// inputs and outputs are both *ircproto.Message types.
+//
+// The initial state is DISCONNECTED.
 type IRCConnection struct {
+	// IRCConnection is a notifier. See the Notification types.
 	notify.Notifier
 
+	// Servers to connect to.
 	Endpoints []Endpoint
 	Err error
 
@@ -34,9 +48,11 @@ type IRCConnection struct {
 	out chan *ircproto.Message
 }
 
-// Notification types.
-type StateChange struct {}
-type IncomingMessage struct {
+// Delivered to notifiees when the IRC connection state changes.
+type StateChangeNotification struct {}
+
+// Delivered to notifiees when an IRC message is received from the connection.
+type IncomingMessageNotification struct {
 	Message *ircproto.Message
 }
 
@@ -48,12 +64,19 @@ func NewIRCConnection(endpoints []Endpoint) *IRCConnection {
 	return ic
 }
 
+// Returns the current State of the connection.
 func (ic *IRCConnection) State() State {
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
 	return ic.state
 }
 
+// Changes the State of the connection.
+//
+// Allowed transitions:
+//
+//   DISCONNECTED -> CONNECTING
+//   CONNECTED -> DISCONNECTED
 func (ic *IRCConnection) StateIs(s State) error {
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
@@ -75,7 +98,7 @@ func (ic *IRCConnection) StateIs(s State) error {
 		// Start connecting.
 		ic.Err = nil
 		ic.state = s
-		ic.Notify(StateChange{})
+		ic.Notify(StateChangeNotification{})
 		ic.wg.Add(1)
 		go ic.wrappedRun()
 
@@ -92,7 +115,7 @@ func (ic *IRCConnection) OutgoingMessageIs(p *ircproto.Message) error {
 	if ic.state != CONNECTED {
 		return errors.New("Not connected")
 	}
-	ic.out <-p
+	ic.out <- p
 	return nil
 }
 
@@ -103,7 +126,7 @@ func (ic *IRCConnection) wrappedRun() {
 	ic.state = DISCONNECTED
 	ic.Err = err
 	close(ic.out)
-	ic.Notify(StateChange{})
+	ic.Notify(StateChangeNotification{})
 
 	log.Print("IRCConnection error: %s", err)
 }
@@ -120,7 +143,7 @@ func (ic *IRCConnection) run() error {
 
 	ic.mu.Lock()
 	ic.state = CONNECTED
-	ic.Notify(StateChange{})
+	ic.Notify(StateChangeNotification{})
 	ic.mu.Unlock()
 
 	log.Print("IRCConnection connected.")
@@ -135,7 +158,7 @@ func (ic *IRCConnection) run() error {
 				return
 			}
 
-			msg, err := ProtoAsMessage(p)
+			msg, err := protoAsMessage(p)
 			if err != nil {
 				log.Printf("Ignoring outgoing message: %+v", p)
 				continue
@@ -154,12 +177,12 @@ func (ic *IRCConnection) run() error {
 			return err
 		}
 
-		p, err := MessageAsProto(message)
+		p, err := messageAsProto(message)
 		if err != nil {
 			log.Printf("IRCConnection ignoring message: %+v", message)
 			continue
 		}
 
-		ic.Notify(IncomingMessage{Message: p})
+		ic.Notify(IncomingMessageNotification{Message: p})
 	}
 }
