@@ -33,6 +33,11 @@ type Channel struct {
 	Config *ChannelConfig
 }
 
+type IRCConnection struct {
+	Controller *ProtocolController
+	Connection *NetworkConnection
+}
+
 func handleIndex(w http.ResponseWriter, r *http.Request) {
 	io.WriteString(w, "IQ\n")
 }
@@ -92,24 +97,25 @@ func main() {
 
 	eventServer := NewEventServer()
 
-	// Respond to PINGs.
-	go PingReactor(eventServer)
-
 	// Stream server.
 	go startStreamServer(eventServer)
 
-	// Connect to configured networks.
-	var ncs []*NetworkConnection
-	for _, network := range networks {
-		nc := NewNetworkConnection(network)
-		go ConnReactor(nc, eventServer)
-		go CommandReactor(eventServer, nc)
+	var iqState []IRCConnection
 
-		ncs = append(ncs, nc)
+	// Connect to configured networks.
+	for _, network := range networks {
+		var ircconn IRCConnection
+		ircconn.Connection = NewNetworkConnection(network)
+		ircconn.Controller = NewProtocolController(ircconn.Connection)
+
+		go ConnReactor(ircconn.Connection, eventServer)
+		go CommandReactor(eventServer, ircconn.Connection)
+
+		iqState = append(iqState, ircconn)
 		time.Sleep(10 * time.Second)
 	}
-	for _, nc := range ncs {
-		nc.Wait()
+	for _, ircconn := range iqState {
+		ircconn.Connection.Wait()
 	}
 
 	log.Print("Exiting.")
