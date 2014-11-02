@@ -5,12 +5,12 @@ import "github.com/msparks/iq/notify"
 import "github.com/msparks/iq/public"
 import ircproto "github.com/msparks/iq/public/irc"
 import "github.com/msparks/iq/ircconnection"
+import "github.com/msparks/iq/ircsession"
 import "github.com/sorcix/irc"
 import "log"
 import "math/rand"
 import "strconv"
 import "sync"
-import "time"
 
 type ConnectionHandle string
 
@@ -26,7 +26,8 @@ type NetworkConnection struct {
 
 	Network *Network
 
-	ic *ircconnection.IRCConnection
+	session *ircsession.IRCSession
+
 	state NetworkConnectionState
 	conn *irc.Conn
 	handle ConnectionHandle
@@ -42,9 +43,18 @@ type NetworkConnectionEvent struct {
 func NewNetworkConnection(n *Network) *NetworkConnection {
 	endpoint := ircconnection.Endpoint{Address: n.Config.Server}
 
+	settings := ircsession.IRCSettings{
+		Nicknames: []string{n.Config.Nick},
+		User: "IQ",
+		Realname: "IQ",
+	}
+
+	conn := ircconnection.NewIRCConnection([]ircconnection.Endpoint{endpoint})
+	session := ircsession.NewIRCSession(settings, conn)
+
 	nc := &NetworkConnection{
 		Network: n,
-		ic: ircconnection.NewIRCConnection([]ircconnection.Endpoint{endpoint}),
+		session: session,
 	}
 
 	nc.quit = make(chan bool)
@@ -79,51 +89,23 @@ func (nc *NetworkConnection) Handle() ConnectionHandle {
 
 // TODO(msparks): Return error.
 func (nc *NetworkConnection) Write(p *ircproto.Message) {
-	nc.ic.OutgoingMessageIs(p)
+	nc.session.Conn.OutgoingMessageIs(p)
 }
 
 func (nc *NetworkConnection) run() {
 	log.Print("NetworkConnection: run")
-	notifiee := nc.ic.NewNotifiee()
-	defer nc.ic.CloseNotifiee(notifiee)
 
-	go nc.ic.StateIs(ircconnection.CONNECTING)
+	connNotifiee := nc.session.Conn.NewNotifiee()
+	defer nc.session.Conn.CloseNotifiee(connNotifiee)
+
+	nc.handle = ConnectionHandle(strconv.FormatInt(rand.Int63(), 16))
+
+	go nc.session.Conn.StateIs(ircconnection.CONNECTING)
 
 	for {
-		v := <-notifiee
+		v := <-connNotifiee
 		log.Printf("NetworkConnection: notification %T", v)
 		switch v := v.(type) {
-		case ircconnection.StateChangeNotification:
-			switch nc.ic.State() {
-			case ircconnection.DISCONNECTED:
-				nc.setState(DISCONNECTED)
-				time.Sleep(5 * time.Second)
-				log.Printf("Reconnecting...")
-				nc.setState(CONNECTING)
-				go nc.ic.StateIs(ircconnection.CONNECTING)
-
-			case ircconnection.CONNECTED:
-				nc.setState(CONNECTED)
-				log.Printf("Connected")
-				nc.handle = ConnectionHandle(strconv.FormatInt(rand.Int63(), 16))
-				// TODO(msparks): Write USER.
-				nick := &ircproto.Message{
-					Type: ircproto.Message_NICK.Enum(),
-					Nick: &ircproto.Nick{
-						NewNick: proto.String(nc.Network.Config.Nick),
-					},
-				}
-				user := &ircproto.Message{
-					Type: ircproto.Message_USER.Enum(),
-					User: &ircproto.User{
-						User: proto.String("IQ"),
-						Realname: proto.String("IQ"),
-					},
-				}
-				nc.ic.OutgoingMessageIs(nick)
-				nc.ic.OutgoingMessageIs(user)
-			}
-
 		case ircconnection.IncomingMessageNotification:
 			ev := &public.Event{
 				IrcMessage: &public.IrcMessage{
@@ -133,8 +115,6 @@ func (nc *NetworkConnection) run() {
 			}
 
 			log.Printf("Incoming event: %+v", ev)
-
-			// TODO(msparks): If welcome message received, join channels.
 
 			nc.Notify(NetworkConnectionEvent{Event: ev})
 		}

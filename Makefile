@@ -10,7 +10,7 @@ public:
 	$(MAKE) -C $@
 .PHONY: public
 
-iq: *.go ircconnection/*.go notify/*.go
+iq: *.go ircconnection/*.go ircsession/*.go notify/*.go
 	go build -o $@
 
 install: all

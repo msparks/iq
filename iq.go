@@ -34,7 +34,6 @@ type Channel struct {
 }
 
 type IRCConnection struct {
-	Controller *ProtocolController
 	Connection *NetworkConnection
 }
 
@@ -106,7 +105,6 @@ func main() {
 	for _, network := range networks {
 		var ircconn IRCConnection
 		ircconn.Connection = NewNetworkConnection(network)
-		ircconn.Controller = NewProtocolController(ircconn.Connection)
 
 		go ConnReactor(ircconn.Connection, eventServer)
 		go CommandReactor(eventServer, ircconn.Connection)
