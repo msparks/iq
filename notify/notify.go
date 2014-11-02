@@ -1,4 +1,4 @@
-package main
+package notify
 
 type Notifiee chan interface{}
 
@@ -24,7 +24,7 @@ func (n *Notifier) CloseNotifiee(c Notifiee) {
 	n.notifiees = r
 }
 
-func (n *Notifier) notify(v interface{}) {
+func (n *Notifier) Notify(v interface{}) {
 	for _, notifiee := range n.notifiees {
 		notifiee <-v
 	}

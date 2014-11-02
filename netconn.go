@@ -1,6 +1,7 @@
 package main
 
 import "code.google.com/p/goprotobuf/proto"
+import "github.com/msparks/iq/notify"
 import "github.com/msparks/iq/public"
 import ircproto "github.com/msparks/iq/public/irc"
 import "github.com/msparks/iq/ircconnection"
@@ -21,7 +22,7 @@ const (
 )
 
 type NetworkConnection struct {
-	Notifier
+	notify.Notifier
 
 	Network *Network
 
@@ -69,7 +70,7 @@ func (nc *NetworkConnection) State() NetworkConnectionState {
 func (nc *NetworkConnection) setState(s NetworkConnectionState) {
 	if s != nc.state {
 		nc.state = s
-		nc.notify(NetworkConnectionStateChange{})
+		nc.Notify(NetworkConnectionStateChange{})
 	}
 }
 
@@ -168,6 +169,6 @@ func (nc *NetworkConnection) runLoop() {
 		ev := &public.Event{IrcMessage: &public.IrcMessage{
 			Handle: proto.String(string(nc.handle)),
 			Message: p}}
-		nc.notify(NetworkConnectionEvent{Event: ev})
+		nc.Notify(NetworkConnectionEvent{Event: ev})
 	}
 }

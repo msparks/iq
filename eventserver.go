@@ -1,12 +1,13 @@
 package main
 
 import (
+	"github.com/msparks/iq/notify"
 	"github.com/msparks/iq/public"
 	"log"
 )
 
 type EventServer struct {
-	Notifier
+	notify.Notifier
 
 	Event chan *public.Event
 	Command chan *public.Command
@@ -29,9 +30,9 @@ func (s *EventServer) readChannels() {
 	for {
 		select {
 		case ev := <-s.Event:
-			s.notify(ev)
+			s.Notify(ev)
 		case cmd := <-s.Command:
-			s.notify(cmd)
+			s.Notify(cmd)
 		}
 	}
 }
