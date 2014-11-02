@@ -3,7 +3,6 @@ package main
 import "code.google.com/p/goprotobuf/proto"
 import "github.com/msparks/iq/ircconnection"
 import "github.com/msparks/iq/public"
-import "log"
 
 func ConnReactor(ns *NamedSession, evs *EventServer) {
 	notifiee := ns.Conn.NewNotifiee()
@@ -19,8 +18,6 @@ func ConnReactor(ns *NamedSession, evs *EventServer) {
 					Message: v.Message,
 				},
 			}
-
-			log.Printf("ConnReactor emitting event: %+v", ev)
 			evs.Event <-ev
 		}
 	}

@@ -62,7 +62,6 @@ func (s *IRCSession) run() {
 
 	for {
 		v := <-notifiee
-		log.Printf("IRCSession: notification %T", v)
 
 		switch v := v.(type) {
 		case ircconnection.StateChangeNotification:
