@@ -1,11 +1,15 @@
 package main
 
+import "code.google.com/p/gcfg"
+import "github.com/msparks/iq/ircconnection"
+import "github.com/msparks/iq/ircsession"
 import "io"
 import "log"
+import "math/rand"
+import "net/http"
+import "strconv"
 import "strings"
 import "time"
-import "code.google.com/p/gcfg"
-import "net/http"
 
 type Config struct {
 	Network map[string]*NetworkConfig
@@ -33,8 +37,11 @@ type Channel struct {
 	Config *ChannelConfig
 }
 
-type IRCConnection struct {
-	Connection *NetworkConnection
+type NamedSession struct {
+	Handle string
+	Network *Network
+	Conn *ircconnection.IRCConnection
+	Session *ircsession.IRCSession
 }
 
 func handleIndex(w http.ResponseWriter, r *http.Request) {
@@ -99,21 +106,39 @@ func main() {
 	// Stream server.
 	go startStreamServer(eventServer)
 
-	var iqState []IRCConnection
-
-	// Connect to configured networks.
+	// Create a session for each of the configured networks.
+	var sessions []*NamedSession
 	for _, network := range networks {
-		var ircconn IRCConnection
-		ircconn.Connection = NewNetworkConnection(network)
+		endpoint := ircconnection.Endpoint{Address: network.Config.Server}
+		conn := ircconnection.NewIRCConnection([]ircconnection.Endpoint{endpoint})
 
-		go ConnReactor(ircconn.Connection, eventServer)
-		go CommandReactor(eventServer, ircconn.Connection)
+		settings := ircsession.IRCSettings{
+			Nicknames: []string{network.Config.Nick},
+			User: "IQ",
+			Realname: "IQ",
+		}
+		session := ircsession.NewIRCSession(settings, conn)
 
-		iqState = append(iqState, ircconn)
+		ns := &NamedSession{
+			Handle: strconv.FormatInt(rand.Int63(), 16),
+			Network: network,
+			Conn: conn,
+			Session: session,
+		}
+
+		go ConnReactor(ns, eventServer)
+		go CommandReactor(eventServer, ns)
+
+		conn.StateIs(ircconnection.CONNECTING)
+
+		sessions = append(sessions, ns)
 		time.Sleep(10 * time.Second)
 	}
-	for _, ircconn := range iqState {
-		ircconn.Connection.Wait()
+
+	// Wait forever.
+	log.Printf("Main thread sleeping.")
+	for {
+		time.Sleep(1 * time.Minute)
 	}
 
 	log.Print("Exiting.")

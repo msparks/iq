@@ -2,7 +2,7 @@ package main
 
 import "github.com/msparks/iq/public"
 
-func CommandReactor(evs *EventServer, nc *NetworkConnection) {
+func CommandReactor(evs *EventServer, ns *NamedSession) {
 	notifiee := evs.NewNotifiee()
 	defer evs.CloseNotifiee(notifiee)
 
@@ -10,12 +10,11 @@ func CommandReactor(evs *EventServer, nc *NetworkConnection) {
 		v := <-notifiee
 		switch v := v.(type) {
 		case *public.Command:
-			ircMsg := v.GetIrcMessage(); if ircMsg != nil {
-				if ircMsg.GetHandle() != string(nc.Handle()) {
-					return
-				}
-				msg := ircMsg.GetMessage(); if msg != nil {
-					nc.Write(msg)
+			ircMsg := v.GetIrcMessage()
+			if ircMsg != nil && ircMsg.GetHandle() == ns.Handle {
+				msg := ircMsg.GetMessage()
+				if msg != nil {
+					ns.Conn.OutgoingMessageIs(msg)
 				}
 			}
 		}
