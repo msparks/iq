@@ -68,29 +68,9 @@ func (s *IRCSession) run() {
 		case ircconnection.StateChangeNotification:
 			switch s.Conn.State() {
 			case ircconnection.DISCONNECTED:
-				s.state = DISCONNECTED
-				time.Sleep(5 * time.Second)
-				log.Printf("Reconnecting...")
-				s.state = CONNECTING
-				go s.Conn.StateIs(ircconnection.CONNECTING)
-
+				s.onSocketDisconnect()
 			case ircconnection.CONNECTED:
-				s.state = HANDSHAKING
-				nick := &ircproto.Message{
-					Type: ircproto.Message_NICK.Enum(),
-					Nick: &ircproto.Nick{
-						NewNick: proto.String(s.settings.Nicknames[0]),
-					},
-				}
-				user := &ircproto.Message{
-					Type: ircproto.Message_USER.Enum(),
-					User: &ircproto.User{
-						User: proto.String(s.settings.User),
-						Realname: proto.String(s.settings.Realname),
-					},
-				}
-				s.Conn.OutgoingMessageIs(nick)
-				s.Conn.OutgoingMessageIs(user)
+				s.onSocketConnect()
 			}
 
 		case ircconnection.IncomingMessageNotification:
@@ -108,6 +88,41 @@ func (s *IRCSession) run() {
 	}
 }
 
+func (s *IRCSession) onSocketConnect() {
+	s.state = HANDSHAKING
+	nick := &ircproto.Message{
+		Type: ircproto.Message_NICK.Enum(),
+	Nick: &ircproto.Nick{
+			NewNick: proto.String(s.settings.Nicknames[0]),
+		},
+	}
+	user := &ircproto.Message{
+		Type: ircproto.Message_USER.Enum(),
+	User: &ircproto.User{
+			User: proto.String(s.settings.User),
+			Realname: proto.String(s.settings.Realname),
+		},
+	}
+	s.Conn.OutgoingMessageIs(nick)
+	s.Conn.OutgoingMessageIs(user)
+}
+
+func (s *IRCSession) onSocketDisconnect() {
+	s.state = DISCONNECTED
+	time.Sleep(5 * time.Second)
+	log.Printf("Reconnecting...")
+	s.state = CONNECTING
+	go s.Conn.StateIs(ircconnection.CONNECTING)
+}
+
+func (s *IRCSession) onWelcome(m *ircproto.Reply) {
+	params := m.GetParams()
+	if len(params) > 0 {
+		s.state = CONNECTED
+		log.Printf("Connected. Nick is %s", params[0])
+	}
+}
+
 func (s *IRCSession) onPing(msg *ircproto.Message) {
 	target := msg.GetPing().GetTarget()
 	reply := &ircproto.Message{
@@ -117,12 +132,4 @@ func (s *IRCSession) onPing(msg *ircproto.Message) {
 		},
 	}
 	s.Conn.OutgoingMessageIs(reply)
-}
-
-func (s *IRCSession) onWelcome(m *ircproto.Reply) {
-	params := m.GetParams()
-	if len(params) > 0 {
-		s.state = CONNECTED
-		log.Printf("Connected. Nick is %s", params[0])
-	}
 }
