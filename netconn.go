@@ -3,6 +3,7 @@ package main
 import "code.google.com/p/goprotobuf/proto"
 import "github.com/msparks/iq/public"
 import ircproto "github.com/msparks/iq/public/irc"
+import "github.com/msparks/iq/ircconnection"
 import "github.com/sorcix/irc"
 import "log"
 import "math/rand"
@@ -24,6 +25,7 @@ type NetworkConnection struct {
 
 	Network *Network
 
+	ic *ircconnection.IRCConnection
 	state NetworkConnectionState
 	conn *irc.Conn
 	handle ConnectionHandle
@@ -37,7 +39,15 @@ type NetworkConnectionEvent struct {
 }
 
 func NewNetworkConnection(n *Network) *NetworkConnection {
-	nc := &NetworkConnection{Network: n}
+	endpoint := ircconnection.Endpoint{Address: n.Config.Server}
+
+	nc := &NetworkConnection{
+		Network: n,
+		ic: ircconnection.NewIRCConnection([]ircconnection.Endpoint{endpoint}),
+	}
+
+	nc.ic.StateIs(ircconnection.CONNECTING)
+
 	nc.quit = make(chan bool)
 	nc.wg.Add(1)
 	go nc.connectLoop()

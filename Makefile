@@ -10,8 +10,8 @@ public:
 	$(MAKE) -C $@
 .PHONY: public
 
-iq: *.go
-	go build -o $@ $^
+iq: *.go ircconnection/*.go
+	go build -o $@
 
 clean:
 	for dir in $(SUBDIRS); do \
