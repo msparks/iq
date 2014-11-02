@@ -5,6 +5,7 @@ import (
 	"code.google.com/p/goprotobuf/proto"
 	"github.com/msparks/iq/ircconnection"
 	"github.com/msparks/iq/notify"
+	"github.com/sorcix/irc"
 	ircproto "github.com/msparks/iq/public/irc"
 	"log"
 	"sync"
@@ -96,9 +97,13 @@ func (s *IRCSession) run() {
 			switch v.Message.GetType() {
 			case ircproto.Message_PING:
 				s.onPing(v.Message)
-			}
 
-			// TODO(msparks): Handle welcome message to finish handshaking.
+			case ircproto.Message_REPLY:
+				r := v.Message.GetReply()
+				if r.GetNumeric() == irc.RPL_WELCOME {
+					s.onWelcome(r)
+				}
+			}
 		}
 	}
 }
@@ -112,4 +117,12 @@ func (s *IRCSession) onPing(msg *ircproto.Message) {
 		},
 	}
 	s.Conn.OutgoingMessageIs(reply)
+}
+
+func (s *IRCSession) onWelcome(m *ircproto.Reply) {
+	params := m.GetParams()
+	if len(params) > 0 {
+		s.state = CONNECTED
+		log.Printf("Connected. Nick is %s", params[0])
+	}
 }

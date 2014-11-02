@@ -4,6 +4,7 @@ import "code.google.com/p/goprotobuf/proto"
 import "errors"
 import ircproto "github.com/msparks/iq/public/irc"
 import "github.com/sorcix/irc"
+import "strconv"
 
 func protoAsMessage(p *ircproto.Message) (message *irc.Message, err error) {
 	message = &irc.Message{}
@@ -22,7 +23,8 @@ func protoAsMessage(p *ircproto.Message) (message *irc.Message, err error) {
 		}
 
 	case ircproto.Message_USER:
-		user := p.GetUser().GetUser(); if user == "" {
+		user := p.GetUser().GetUser()
+		if user == "" {
 			return nil, errors.New("user must be specified")
 		}
 		message.Command = irc.USER
@@ -88,7 +90,18 @@ func messageAsProto(message *irc.Message) (p *ircproto.Message, err error) {
 		}
 
 	default:
-		return nil, errors.New("Unknown command")
+		// Maybe the command is a numeric reply?
+		if _, err := strconv.ParseInt(message.Command, 10, 32); err == nil {
+			p.Type = ircproto.Message_REPLY.Enum()
+			p.Reply = &ircproto.Reply{
+				Source:   prefixProto(message.Prefix),
+				Numeric:  proto.String(message.Command),
+				Params:   message.Params,
+				Trailing: proto.String(message.Trailing),
+			}
+		} else {
+			return nil, errors.New("Unknown command")
+		}
 	}
 
 	return p, nil

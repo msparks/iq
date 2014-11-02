@@ -17,6 +17,7 @@ message Message {
     NOTICE = 4;
     NICK = 5;
     USER = 6;
+    REPLY = 7;
   }
 
   optional Type type = 1;
@@ -26,6 +27,7 @@ message Message {
   optional Notice notice = 5;
   optional Nick nick = 6;
   optional User user = 7;
+  optional Reply reply = 8;
 }
 
 message Ping {
@@ -60,4 +62,12 @@ message User {
   optional string user = 1;
   // TODO(msparks): Mode in tag 2.
   optional string realname = 3;
+}
+
+message Reply {
+  optional Prefix source = 1;
+  // This is a string because the IRC protocol zero-pads the numerics.
+  optional string numeric = 2;
+  repeated string params = 3;
+  optional string trailing = 4;
 }
