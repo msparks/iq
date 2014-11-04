@@ -120,15 +120,17 @@ func (ic *IRCConnection) OutgoingMessageIs(p *ircproto.Message) error {
 }
 
 func (ic *IRCConnection) wrappedRun() {
+	ic.out = make(chan *ircproto.Message)
+	defer close(ic.out)
+
 	err := ic.run()
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
 	ic.state = DISCONNECTED
 	ic.Err = err
-	close(ic.out)
 	ic.Notify(StateChangeNotification{})
 
-	log.Print("IRCConnection error: %s", err)
+	log.Printf("IRCConnection error: %s", err)
 }
 
 func (ic *IRCConnection) run() error {
@@ -148,9 +150,6 @@ func (ic *IRCConnection) run() error {
 
 	log.Print("IRCConnection connected.")
 
-	// Closed after the state is changed to DISCONNECTED so OutgoingMessageIs
-	// can know if the channel is open.
-	ic.out = make(chan *ircproto.Message)
 	go func() {
 		for {
 			p, ok := <-ic.out
