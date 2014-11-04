@@ -10,7 +10,9 @@ import (
 	ircproto "github.com/msparks/iq/public/irc"
 	"github.com/sorcix/irc"
 	"log"
+	"net"
 	"sync"
+	"time"
 )
 
 // State of the IRC connection.
@@ -124,23 +126,27 @@ func (ic *IRCConnection) wrappedRun() {
 	defer close(ic.out)
 
 	err := ic.run()
+	log.Printf("IRCConnection error: %s", err)
+
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
 	ic.state = DISCONNECTED
 	ic.Err = err
 	ic.Notify(StateChangeNotification{})
-
-	log.Printf("IRCConnection error: %s", err)
 }
 
 func (ic *IRCConnection) run() error {
 	log.Print("IRCConnection connecting...")
 
 	endpoint := ic.Endpoints[0]
-	conn, err := irc.Dial(endpoint.Address)
+	dialer := &net.Dialer{
+		KeepAlive: 10 * time.Second,
+	}
+	sock, err := dialer.Dial("tcp", endpoint.Address)
 	if err != nil {
 		return err
 	}
+	conn := irc.NewConn(sock)
 	defer conn.Close()
 
 	ic.mu.Lock()
