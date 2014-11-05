@@ -14,6 +14,15 @@ type IRCConnectionTest struct{}
 
 var _ = Suite(&IRCConnectionTest{})
 
+// Returns a listening local server for testing.
+func localServer(c *C) net.Listener {
+	// Local server.
+	server, err := net.Listen("tcp", "[::]:0")
+	c.Assert(err, IsNil)
+	c.Logf("Listening on %s.", server.Addr().String())
+	return server
+}
+
 func (s *IRCConnectionTest) TestNewIRCConnection(c *C) {
 	ep := Endpoint{"some server"}
 	ic := NewIRCConnection([]Endpoint{ep})
@@ -24,11 +33,7 @@ func (s *IRCConnectionTest) TestNewIRCConnection(c *C) {
 }
 
 func (s *IRCConnectionTest) TestFromRWC(c *C) {
-	// Local server.
-	server, err := net.Listen("tcp", "[::]:0")
-	c.Assert(err, IsNil)
-	defer server.Close()
-	c.Logf("Listening on %s.", server.Addr().String())
+	server := localServer(c)
 
 	// Connect to local server.
 	conn, err := net.Dial("tcp", server.Addr().String())
@@ -42,11 +47,7 @@ func (s *IRCConnectionTest) TestFromRWC(c *C) {
 }
 
 func (s *IRCConnectionTest) TestConnect(c *C) {
-	// Local server.
-	server, err := net.Listen("tcp", "[::]:0")
-	c.Assert(err, IsNil)
-	defer server.Close()
-	c.Logf("Listening on %s.", server.Addr().String())
+	server := localServer(c)
 
 	ep := Endpoint{server.Addr().String()}
 	ic := NewIRCConnection([]Endpoint{ep})
@@ -69,11 +70,7 @@ func (s *IRCConnectionTest) TestConnect(c *C) {
 }
 
 func (s *IRCConnectionTest) TestRead(c *C) {
-	// Local server.
-	server, err := net.Listen("tcp", "[::]:0")
-	c.Assert(err, IsNil)
-	defer server.Close()
-	c.Logf("Listening on %s.", server.Addr().String())
+	server := localServer(c)
 
 	ep := Endpoint{server.Addr().String()}
 	ic := NewIRCConnection([]Endpoint{ep})
