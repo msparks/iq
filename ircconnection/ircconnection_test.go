@@ -133,3 +133,55 @@ func (s *IRCConnectionTest) TestWrite(c *C) {
 	c.Assert(err, IsNil)
 	c.Check(line, Equals, "PONG source :target\r\n")
 }
+
+func (s *IRCConnectionTest) TestRemoteDisconnect(c *C) {
+	server := localServer(c)
+
+	ep := Endpoint{server.Addr().String()}
+	ic := NewIRCConnection([]Endpoint{ep})
+	c.Assert(ic.StateIs(CONNECTING), IsNil)
+
+	notifiee := ic.NewNotifiee()
+	defer ic.CloseNotifiee(notifiee)
+
+	// Accept the connection and wait for the client to notice.
+	peer, _ := server.Accept()
+	<-notifiee
+	c.Check(ic.State(), Equals, CONNECTED)
+
+	// Close the connection from the server side and wait for the client to
+	// notice.
+	peer.Close()
+	<-notifiee
+	c.Check(ic.State(), Equals, DISCONNECTED)
+}
+
+func (s *IRCConnectionTest) TestReconnect(c *C) {
+	server := localServer(c)
+
+	ep := Endpoint{server.Addr().String()}
+	ic := NewIRCConnection([]Endpoint{ep})
+	c.Assert(ic.StateIs(CONNECTING), IsNil)
+
+	notifiee := ic.NewNotifiee()
+	defer ic.CloseNotifiee(notifiee)
+
+	// Accept the connection and close it after the peer connects.
+	peer, _ := server.Accept()
+	<-notifiee  // CONNECTED
+	peer.Close()
+	<-notifiee  // DISCONNECTED
+
+	c.Check(ic.State(), Equals, DISCONNECTED)
+	c.Check(ic.Err, ErrorMatches, "EOF")
+
+	// Reconnect.
+	go func() {
+		c.Assert(ic.StateIs(CONNECTING), IsNil)
+	}()
+	<-notifiee  // CONNECTING
+	server.Accept()
+	<-notifiee  // CONNECTED
+
+	c.Check(ic.State(), Equals, CONNECTED)
+}
