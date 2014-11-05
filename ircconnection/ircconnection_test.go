@@ -2,6 +2,8 @@ package ircconnection
 
 import (
 	. "gopkg.in/check.v1"
+	"io"
+	ircproto "github.com/msparks/iq/public/irc"
 	"net"
 	"testing"
 )
@@ -64,4 +66,35 @@ func (s *IRCConnectionTest) TestConnect(c *C) {
 	c.Assert(err, IsNil)
 	<-notifiee
 	c.Check(ic.State(), Equals, CONNECTED)
+}
+
+func (s *IRCConnectionTest) TestRead(c *C) {
+	// Local server.
+	server, err := net.Listen("tcp", "[::]:0")
+	c.Assert(err, IsNil)
+	defer server.Close()
+	c.Logf("Listening on %s.", server.Addr().String())
+
+	ep := Endpoint{server.Addr().String()}
+	ic := NewIRCConnection([]Endpoint{ep})
+	c.Assert(ic.StateIs(CONNECTING), IsNil)
+
+	notifiee := ic.NewNotifiee()
+	defer ic.CloseNotifiee(notifiee)
+
+	// Wait for the client to connect, then write some data to it.
+	go func() {
+		peer, _ := server.Accept()
+		io.WriteString(peer, "PING :foo\r\n")
+	}()
+
+	// Wait for the incoming message notifications.
+	for {
+		v := <-notifiee
+		switch v := v.(type) {
+		case IncomingMessageNotification:
+			c.Assert(v.Message.GetType(), Equals, ircproto.Message_PING)
+			return
+		}
+	}
 }
