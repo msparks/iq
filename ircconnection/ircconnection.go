@@ -9,6 +9,7 @@ import (
 	"github.com/msparks/iq/notify"
 	ircproto "github.com/msparks/iq/public/irc"
 	"github.com/sorcix/irc"
+	"io"
 	"log"
 	"net"
 	"sync"
@@ -33,36 +34,47 @@ type Endpoint struct {
 
 // IRCConnection is a state machine for a connection to an IRC network. Its
 // inputs and outputs are both *ircproto.Message types.
-//
-// The initial state is DISCONNECTED.
 type IRCConnection struct {
 	// IRCConnection is a notifier. See the Notification types.
 	notify.Notifier
 
 	// Servers to connect to.
 	Endpoints []Endpoint
-	Err error
+	Err       error
 
 	state State
-	wg sync.WaitGroup
-	mu sync.Mutex
+	wg    sync.WaitGroup
+	mu    sync.Mutex
+	conn  *irc.Conn
 
 	out chan *ircproto.Message
 }
 
 // Delivered to notifiees when the IRC connection state changes.
-type StateChangeNotification struct {}
+type StateChangeNotification struct{}
 
 // Delivered to notifiees when an IRC message is received from the connection.
 type IncomingMessageNotification struct {
 	Message *ircproto.Message
 }
 
+// Initializes a DISCONNECTED IRCConnection.
 func NewIRCConnection(endpoints []Endpoint) *IRCConnection {
 	ic := &IRCConnection{
 		Endpoints: endpoints,
 		state:     DISCONNECTED,
 	}
+	return ic
+}
+
+// Returns a new IRCConnection from a ReadWriteCloser. Initial state is CONNECTED.
+func FromRWC(c io.ReadWriteCloser, endpoints []Endpoint) *IRCConnection {
+	ic := &IRCConnection{
+		Endpoints: endpoints,
+		state:     CONNECTED,
+		conn:      irc.NewConn(c),
+	}
+	go ic.run()
 	return ic
 }
 
@@ -102,7 +114,7 @@ func (ic *IRCConnection) StateIs(s State) error {
 		ic.state = s
 		ic.Notify(StateChangeNotification{})
 		ic.wg.Add(1)
-		go ic.wrappedRun()
+		go ic.run()
 
 	case CONNECTED:
 		return errors.New("Invalid transition")
@@ -121,21 +133,44 @@ func (ic *IRCConnection) OutgoingMessageIs(p *ircproto.Message) error {
 	return nil
 }
 
-func (ic *IRCConnection) wrappedRun() {
+func (ic *IRCConnection) run() {
 	ic.out = make(chan *ircproto.Message)
 	defer close(ic.out)
 
-	err := ic.run()
+	// Do we need to connect?
+	if ic.conn == nil {
+		err := ic.connect()
+		if err != nil {
+			ic.mu.Lock()
+			defer ic.mu.Unlock()
+			ic.state = DISCONNECTED
+			ic.Err = err
+			ic.Notify(StateChangeNotification{})
+			log.Printf("IRCConnection error connecting: %s", err)
+			return
+		}
+	}
+
+	// We're connected.
+	ic.mu.Lock()
+	ic.state = CONNECTED
+	ic.Notify(StateChangeNotification{})
+	ic.mu.Unlock()
+
+	// Use the connection until it dies.
+	err := ic.readAndWrite()
 	log.Printf("IRCConnection error: %s", err)
 
 	ic.mu.Lock()
 	defer ic.mu.Unlock()
 	ic.state = DISCONNECTED
 	ic.Err = err
+	ic.conn.Close()
+	ic.conn = nil
 	ic.Notify(StateChangeNotification{})
 }
 
-func (ic *IRCConnection) run() error {
+func (ic *IRCConnection) connect() error {
 	log.Print("IRCConnection connecting...")
 
 	endpoint := ic.Endpoints[0]
@@ -146,16 +181,15 @@ func (ic *IRCConnection) run() error {
 	if err != nil {
 		return err
 	}
-	conn := irc.NewConn(sock)
-	defer conn.Close()
-
-	ic.mu.Lock()
-	ic.state = CONNECTED
-	ic.Notify(StateChangeNotification{})
-	ic.mu.Unlock()
+	ic.conn = irc.NewConn(sock)
 
 	log.Print("IRCConnection connected.")
 
+	return nil
+}
+
+// Reads ic.conn indefinitely.
+func (ic *IRCConnection) readAndWrite() error {
 	go func() {
 		for {
 			p, ok := <-ic.out
@@ -169,7 +203,7 @@ func (ic *IRCConnection) run() error {
 				continue
 			}
 			log.Printf("Sending message: %+v", p)
-			err = conn.Encode(msg)
+			err = ic.conn.Encode(msg)
 			if err != nil {
 				log.Printf("Error sending message: %s", err)
 			}
@@ -177,7 +211,7 @@ func (ic *IRCConnection) run() error {
 	}()
 
 	for {
-		message, err := conn.Decode()
+		message, err := ic.conn.Decode()
 		if err != nil {
 			return err
 		}
