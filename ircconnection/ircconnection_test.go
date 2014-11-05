@@ -1,9 +1,11 @@
 package ircconnection
 
 import (
+	"bufio"
+	"code.google.com/p/goprotobuf/proto"
+	ircproto "github.com/msparks/iq/public/irc"
 	. "gopkg.in/check.v1"
 	"io"
-	ircproto "github.com/msparks/iq/public/irc"
 	"net"
 	"testing"
 )
@@ -94,4 +96,40 @@ func (s *IRCConnectionTest) TestRead(c *C) {
 			return
 		}
 	}
+}
+
+func (s *IRCConnectionTest) TestWrite(c *C) {
+	server := localServer(c)
+
+	ep := Endpoint{server.Addr().String()}
+	ic := NewIRCConnection([]Endpoint{ep})
+	c.Assert(ic.StateIs(CONNECTING), IsNil)
+
+	pong := &ircproto.Message{
+		Type: ircproto.Message_PONG.Enum(),
+		Pong: &ircproto.Pong{
+			Source: proto.String("source"),
+			Target: proto.String("target"),
+		},
+	}
+
+	// Can't send messages yet; we're not connected.
+	err := ic.OutgoingMessageIs(pong)
+	c.Check(err, ErrorMatches, "Not connected")
+
+	// Accept the connection and wait for the client to notice.
+	notifiee := ic.NewNotifiee()
+	defer ic.CloseNotifiee(notifiee)
+	peer, _ := server.Accept()
+	<-notifiee
+
+	// Try sending again.
+	err = ic.OutgoingMessageIs(pong)
+	c.Check(err, IsNil)
+
+	// Verify the message from the peer.
+	reader := bufio.NewReader(peer)
+	line, err := reader.ReadString('\n')
+	c.Assert(err, IsNil)
+	c.Check(line, Equals, "PONG source :target\r\n")
 }
