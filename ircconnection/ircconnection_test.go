@@ -38,3 +38,30 @@ func (s *IRCConnectionTest) TestFromRWC(c *C) {
 
 	c.Check(ic.State(), Equals, CONNECTED)
 }
+
+func (s *IRCConnectionTest) TestConnect(c *C) {
+	// Local server.
+	server, err := net.Listen("tcp", "[::]:0")
+	c.Assert(err, IsNil)
+	defer server.Close()
+	c.Logf("Listening on %s.", server.Addr().String())
+
+	ep := Endpoint{server.Addr().String()}
+	ic := NewIRCConnection([]Endpoint{ep})
+
+	// Start connecting. Our server won't accept the connection until we
+	// explicitly call Accept, so there is no race here.
+	c.Check(ic.State(), Equals, DISCONNECTED)
+	c.Assert(ic.StateIs(CONNECTING), IsNil)
+	c.Check(ic.State(), Equals, CONNECTING)
+
+	// Accept the connection. The state changes asynchronously, so we use
+	// notifications to wait for it.
+	notifiee := ic.NewNotifiee()
+	defer ic.CloseNotifiee(notifiee)
+	peer, err := server.Accept()
+	defer peer.Close()
+	c.Assert(err, IsNil)
+	<-notifiee
+	c.Check(ic.State(), Equals, CONNECTED)
+}
